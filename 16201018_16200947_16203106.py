@@ -33,6 +33,10 @@ def set_HQ_CC(graph, HQNode, CCNode):
     graph.node[CCNode]["lon"]=-3.369157
     graph.node[CCNode]["type"] = "CC"
 
+    #add edge between HQ and CC
+    graph.add_edge(HQNode,CCNode)
+    graph[HQNode][CCNode] = 1
+    
     return graph
 
 def set_convoy(graph, ConvoyNode):
@@ -42,8 +46,8 @@ def set_convoy(graph, ConvoyNode):
         raise ValueError("Convoy Node " + str(ConvoyNode) + " not present")
 
     #Convoy setup
-    graph.node[ConvoyNode]["lat"] = 52.518912
-    graph.node[ConvoyNode]["lon"] = 13.398652
+    graph.node[ConvoyNode]["lat"] = 52.486730
+    graph.node[ConvoyNode]["lon"] = -45.983332
     graph.node[ConvoyNode]["type"] = "convoy"
 
     return graph
@@ -98,13 +102,13 @@ def get_graph(numOfNodes=10):
     graph = set_HQ_CC(graph,0,1)
 
     #set Nodes as Uboats
-    UboatLocations = ([42.22155,7.388568],
-                      [37.988748,0.005755],
-                      [40.506646,5.454974],
-                      [42.22155,7.388568],
-                      [37.988748,0.005755],
-                      [40.506646,5.454974],
-                      [42.22155,7.388568])
+    UboatLocations = ([52.526676, -45.983332],
+                      [51.026676, -44.983332],
+                      [54.026676, -44.983332],
+                      [52.7, -43.98564],
+                      [54.0, -42.0],
+                      [52.7, -40.98564],
+                      [50.0, -42.0])
 
     numOfUboats = 7
 
@@ -142,6 +146,7 @@ def draw_graph(graph):
     plt.close()
 
 
+        
 if __name__ == "__main__":
     graph  = get_graph(10)
 
@@ -150,3 +155,4 @@ if __name__ == "__main__":
     print(graph.edges())
 
     draw_graph(graph)
+    
