@@ -1,6 +1,7 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from geopy.distance import vincenty
+import random
 
 #minimum number of nodes required for communication
 # 1- HQ; 1- CC and 1 - Uboat
@@ -81,15 +82,15 @@ def set_HQ_CC(graph, HQNode, CCNode):
     
     return graph
 
-def set_convoy(graph, ConvoyNode):
+def set_convoy(graph, ConvoyNode, location):
 
     # Sanity checks for input
     if not graph.has_node(ConvoyNode):
         raise ValueError("Convoy Node " + str(ConvoyNode) + " not present")
 
     #Convoy setup
-    graph.node[ConvoyNode]["lat"] = 52.48
-    graph.node[ConvoyNode]["lon"] = -59.98
+    graph.node[ConvoyNode]["lat"] = location[0]
+    graph.node[ConvoyNode]["lon"] = location[1]
     graph.node[ConvoyNode]["type"] = "convoy"
 
     return graph
@@ -121,7 +122,7 @@ def set_Uboats(graph, numOfUboats, UboatLocations=()):
             break
 
     return graph
-
+    
 def initalize(graph):
 
     for eachNode in graph.nodes():
@@ -133,7 +134,7 @@ def initalize(graph):
 
     return graph
 
-def get_graph(numOfNodes=10):
+def get_graph(numOfNodes=17):
     graph = nx.Graph()
 
     # Generate a graph and intialize node attributes
@@ -141,7 +142,7 @@ def get_graph(numOfNodes=10):
     graph = initalize(graph)
 
     #Set Nodes as HQ, CC locations
-    graph = set_HQ_CC(graph,0,1)
+    graph = set_HQ_CC(graph,graph.nodes()[0],graph.nodes()[1])
 
     #set Nodes as Uboats
     UboatLocations = ([52.48, -59.28], # Node -2
@@ -164,12 +165,22 @@ def get_graph(numOfNodes=10):
     graph = set_Uboats(graph, numOfUboats, UboatLocations)
 
     #set convoy node
-    graph = set_convoy(graph,16)
+    graph = set_convoy(graph,graph.nodes()[-1],(52.48,-59.98))
     
     #set edges
     graph = set_edges(graph)
     
     return graph
+    
+def gen_rand_coord():
+    
+    lon=random.uniform(-63.4495, -19.527)
+    lat=random.uniform(25,42)
+    
+    print(lat,lon)
+    
+    return((lat,lon))
+    
 
 def draw_graph(graph):
     
@@ -206,22 +217,144 @@ def draw_graph(graph):
     plt.savefig("UboatSurvival.png") 
     plt.close()
 
-        
+
+def draw_graphER2(graph):
+    
+#    pos = {}
+#
+#    for eachNode in graph.nodes():
+#        pos[eachNode]=(graph.node[eachNode]["lon"],graph.node[eachNode]["lat"])
+#   
+
+    pos = nx.layout.random_layout(graph)     
+    
+    # get three subsets of nodes: susceptible, infected, removed
+    HQ_node = [n for n in graph.nodes() if graph.node[n]["type"] == "HQ"]
+    convoy_node = [n for n in graph.nodes() if graph.node[n]["type"] == "convoy"]
+    CC_nodes = [n for n in graph.nodes() if graph.node[n]["type"] == "CC"]
+    Uboat_lz_nodes = [n for n in graph.nodes() if ( graph.node[n]["type"] == "Uboat" and \
+                     graph.node[n]["listeningZone"] == 1 ) ]
+    Uboat_nlz_nodes = [n for n in graph.nodes() if ( graph.node[n]["type"] == "Uboat" and \
+                     graph.node[n]["listeningZone"] == 0 ) ]
+    empty_nodes = [n for n in graph.nodes() if graph.node[n]["type"] == ""]
+    
+
+    # draw edges, then draw each subset in different colour
+    
+    nx.draw_networkx_nodes(graph, pos, nodelist=HQ_node, node_color="m")
+    nx.draw_networkx_nodes(graph, pos, nodelist=convoy_node, node_color="r")
+    nx.draw_networkx_nodes(graph, pos, nodelist=CC_nodes, node_color="c")
+    nx.draw_networkx_nodes(graph, pos, nodelist=Uboat_lz_nodes, node_color="b")
+    nx.draw_networkx_nodes(graph, pos, nodelist=Uboat_nlz_nodes, node_color="g")
+    nx.draw_networkx_nodes(graph, pos, nodelist=empty_nodes, node_color="w")
+
+    nx.draw_networkx_labels(graph, pos)
+    
+    nx.draw_networkx_edges(graph, pos)
+#    nx.draw_networkx_edge_labels(graph, pos)
+
+    plt.savefig("UboatSurvivalER2.png") 
+    plt.close()
+
+
+    
+def draw_graphER1(graph):
+    
+    pos = nx.layout.random_layout(graph)
+    
+    nx.draw_networkx_nodes(graph, pos)
+    
+    nx.draw_networkx_labels(graph, pos)
+    
+    nx.draw_networkx_edges(graph, pos)
+
+    plt.savefig("UboatSurvivalERG.png") 
+
+    plt.close()
+
+    return
+
+
+def get_erdos_renyi_graph1(numofNodes=17, edgeProb = 0.2):
+    
+    graph = nx.erdos_renyi_graph(numofNodes, edgeProb)
+    
+    return graph
+
+
+def get_erdos_renyi_graph2(numofNodes=17, edgeProb = 0.2):
+    
+    oceanGraph = nx.erdos_renyi_graph(numofNodes - minNumNodes, edgeProb)
+    
+    oceanGraph = initalize(oceanGraph)
+    
+    #Set Land Graph
+    landGraph = nx.Graph()
+    
+    landGraph.add_nodes_from(range(numofNodes-minNumNodes, numofNodes))
+
+    landGraph = set_HQ_CC(landGraph,landGraph.nodes()[0],landGraph.nodes()[1])
+    
+    #set convoy node
+    landGraph = set_convoy(landGraph,landGraph.nodes()[-1],gen_rand_coord())
+    
+    
+    #connecting both graphs
+    graph = nx.compose(oceanGraph, landGraph)
+    
+    graph.add_edge(oceanGraph.nodes()[0],landGraph.nodes()[-1])
+    
+    graph.add_edge(oceanGraph.nodes()[-1],landGraph.nodes()[0])
+
+    for eachNode in oceanGraph.nodes() :
+        graph.node[eachNode]["type"] = "Uboat"
+        graph.node[eachNode]["state"] = "standBy"
+        graph.node[eachNode]["listeningZone"] = 1
+
+    graph.node[oceanGraph.nodes()[-1]]["listeningZone"] = 0
+
+#
+#    graph = set_Uboats(graph, numOfUboats, UboatLocations)
+#
+#    #set convoy node
+#    graph = set_convoy(graph,graph.nodes()[-1])
+#    
+#    #set edges
+#    graph = set_edges(graph)
+    
+    return graph
+    
+    
 if __name__ == "__main__":
+
+#   Version -0 Real time scenario    
+#    plt.figure(figsize=(15,15))
+#    
+#    graph  = get_graph(17)
+#    draw_graph(graph)
+#    
+#    print("Shortest Path - " ,nx.dijkstra_path(graph,16,0))
+#    
+#    print("Shortest path Length - ",nx.dijkstra_path_length(graph,16,0))
+
+#    
+#   version - 1 just random graph
+#   graph = get_erdos_renyi_graph(17,0.1)
+#    
+#    draw_graphER(graph)
+#    
+
+#   Version 2 - ocean graph and land graph
+
+    graph = get_erdos_renyi_graph2(17,0.5)
     
-    plt.figure(figsize=(15,15))
-    
-    graph  = get_graph(17)
-    
+    draw_graphER2(graph)
+ 
+    print("Shortest Path - " ,nx.dijkstra_path(graph,15,16))
+   
+    print("Shortest path Length - ",nx.dijkstra_path_length(graph,15,16))
+
     print(graph.nodes(data=True))
 
-    print(graph.edges(data=True))
-
-    draw_graph(graph)
-    
-    print("Shortest Path - " ,nx.dijkstra_path(graph,16,0))
-    
-    print("Shortest path Length - ",nx.dijkstra_path_length(graph,16,0))
-        
-    print("Single Source Shortest Path - " ,nx.dijkstra_path(graph,16,0))
+    print(graph.edges(data=True))      
     
