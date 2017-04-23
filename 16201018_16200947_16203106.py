@@ -6,10 +6,11 @@ import random
 #minimum number of nodes required for communication
 # 1- CC; 1- convoy and 1 - Boat
 minNumNodes = 3
-
 minTransRange = 300
 minViewRange = 50
 
+# total number of times
+tn = 50
 
 def set_edges(graph):
     
@@ -58,7 +59,7 @@ def set_CC(graph, CCNode):
 
 
     #CC Setup
-    graph.node[CCNode]["lat"]=50.74
+    graph.node[CCNode]["lat"]=47.74
     graph.node[CCNode]["lon"]=-3.36
     graph.node[CCNode]["type"] = "CC"
 
@@ -112,7 +113,7 @@ def initalize(graph):
         graph.node[eachNode]["lat"] = 0.0
         graph.node[eachNode]["lon"] = 0.0
         graph.node[eachNode]["type"] = ""
-        graph.node[eachNode]["state"] = "standBy"
+        graph.node[eachNode]["state"] = "receive"
         graph.node[eachNode]["listeningZone"] = 0
 
     return graph
@@ -158,8 +159,7 @@ def get_graph(numOfNodes=16):
 def gen_rand_coord():
     
     lon=random.uniform(-63.44, -5.93)
-    lat=random.uniform(60.52,42.09)
-    
+    lat=random.uniform(60.52,42.09)    
     return((lat,lon))
     
 def gen_rand_coord_dist(ptlat, ptlon, distrange):
@@ -175,10 +175,8 @@ def gen_rand_coord_dist(ptlat, ptlon, distrange):
         dist=vincenty((lat,lon),(ptlat,ptlon)).kilometers
         
         if(distrange==50 and (40<=dist<=50)):
-            print(lat,lon,dist)
             flag=1
         elif(distrange==300 and (250<=dist<=300)):
-            print(lat,lon,dist)
             flag=1
         else:
             flag=0
@@ -220,12 +218,6 @@ def draw_graph(graph):
 
 def draw_graphER(graph):
     
-#    pos = {}
-#
-#    for eachNode in graph.nodes():
-#        pos[eachNode]=(graph.node[eachNode]["lon"],graph.node[eachNode]["lat"])
-#   
-
     pos = nx.layout.random_layout(graph)     
     
     # get three subsets of nodes: susceptible, infected, removed
@@ -247,10 +239,10 @@ def draw_graphER(graph):
 
     nx.draw_networkx_labels(graph, pos)
     nx.draw_networkx_edges(graph, pos)
-#    nx.draw_networkx_edge_labels(graph, pos)
 
     plt.savefig("UboatSurvivalER.png") 
     plt.close()
+
 
 def get_erdos_renyi_graph(numofNodes=16, edgeProb = 0.2):
     
@@ -260,7 +252,6 @@ def get_erdos_renyi_graph(numofNodes=16, edgeProb = 0.2):
     #Set Land Graph
     landGraph = nx.Graph()    
     landGraph.add_nodes_from(range(numofNodes-minNumNodes, numofNodes))
-    print(landGraph.nodes())
     
     landGraph = initalize(landGraph)
     landGraph = set_CC(landGraph,landGraph.nodes()[0])
@@ -281,32 +272,49 @@ def get_erdos_renyi_graph(numofNodes=16, edgeProb = 0.2):
 
     #Set Uboats in listening zone
     for eachNode in oceanGraph.nodes() :
-        newPoint = ()
-        if(eachNode==0):
-            newPoint = gen_rand_coord_dist(graph.node[landGraph.nodes()[-1]]["lat"],graph.node[landGraph.nodes()[-1]]["lon"],minViewRange)
-        else:
-            newPoint = gen_rand_coord_dist(graph.node[landGraph.nodes()[eachNode-1]]["lat"],graph.node[landGraph.nodes()[eachNode-1]]["lon"],minTransRange)
-        
-        graph.node[eachNode]["lat"] = newPoint[0]
-        graph.node[eachNode]["lon"] = newPoint[1]
         graph.node[eachNode]["type"] = "Uboat"
         graph.node[eachNode]["state"] = "standBy"
         graph.node[eachNode]["listeningZone"] = 1
 
     return graph
 
-def realWorldScenario():
+def realWorldScenario(numOfNodes=16):
     plt.figure(figsize=(15,15))
     
-    graph  = get_graph(16)
+    graph  = get_graph(numOfNodes)
     draw_graph(graph)
     
-    print("Real world Scenario Shortest Path - " ,nx.dijkstra_path(graph,graph.nodes()[-2],graph.nodes()[0]))
-    print("Shortest path Length - ",nx.dijkstra_path_length(graph,graph.nodes()[-2],graph.nodes()[0]))
+    timeTaken = 0
+    startNode = graph.nodes()[-1]
     
-    print(graph.nodes(data=True))
-    print(graph.edges(data=True))      
+    print("Real World Scenario : ")
     
+    try:
+        for te in range(tn):
+            nextNode = nx.dijkstra_path(graph,startNode,graph.nodes()[0])
+            
+            if(graph.node[nextNode[1]]["state"] != "standBy" ):
+                graph.node[startNode]["state"] = "transmit"
+                timeTaken = timeTaken + 1
+                graph.node[startNode]["state"] = "recieve"
+                startNode = nextNode[1]
+            else:
+                print(nextNode[1], " Node is in standBy state")
+                print(startNode, " uboat starts travelling out of zone")
+                break
+                
+            if(startNode == graph.nodes()[0]):
+                print("Total time taken to send message - ",timeTaken," units.")
+                break
+        
+    except Exception as e:
+        print("No connection available to complete the graph - " + e.args[0])
+    
+        
+    print("Nodes count :", len(graph.nodes()))
+    print("Edge Count : ", len(graph.edges()))
+    
+    return
     
 def researchQScenario(numOfNodes=17, probability=0.2):
     
@@ -315,20 +323,29 @@ def researchQScenario(numOfNodes=17, probability=0.2):
     draw_graphER(graph)
     
     #Convoy ship
+    convoyNode = [n for n in graph.nodes() if graph.node[n]["type"] == "convoy"]
+    CCNode = [n for n in graph.nodes() if graph.node[n]["type"] == "CC"]
     
-    print("Shortest Path - " ,nx.dijkstra_path(graph,14,15))
-    print("Shortest path Length - ",nx.dijkstra_path_length(graph,14,15))
+    print("Scalable graph Output:")
+    
+    print("Nodes count :", len(graph.nodes()))
+    print("Edge Count : ", len(graph.edges()))
+    
+    try:
+        print("Shortest Path - " ,nx.dijkstra_path(graph,convoyNode[0],CCNode[0]))
+        print("Shortest path Length - ",nx.dijkstra_path_length(graph,convoyNode[0],CCNode[0]))
+    except Exception as e:
+        print("No connection available to complete the graph - " + e.args[0])
+        
 
-    print(graph.nodes(data=True))
-    print(graph.edges(data=True))      
     
-    
+    return
     
 if __name__ == "__main__":
 
     
     # Real time scenario    
-#    realWorldScenario()
+    realWorldScenario(16)
 
 
 #   Probability Version 
